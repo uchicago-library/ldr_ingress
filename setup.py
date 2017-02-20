@@ -19,6 +19,7 @@ setup(
     install_requires = [
         'flask>0',
         'flask_restful',
-        'pypremis'
+        'pypremis',
+        'requests'
     ],
 )
