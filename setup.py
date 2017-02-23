@@ -20,6 +20,7 @@ setup(
         'flask>0',
         'flask_restful',
         'pypremis',
-        'requests'
+        'requests>0',
+        'requests-toolbelt'
     ],
 )

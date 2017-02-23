@@ -1,10 +1,11 @@
 import tempfile
-import requests
 from uuid import uuid4
 from pathlib import Path
 from hashlib import md5 as _md5
 
 
+import requests
+from requests_toolbelt.multipart.encoder import MultipartEncoder
 from werkzeug.datastructures import FileStorage
 from flask import Blueprint
 from flask_restful import Resource, Api, reqparse
@@ -91,10 +92,13 @@ class Ingress(Resource):
             data = {"md5": md5}
             if args.get("name"):
                 data['originalName'] = args['name']
+                data['file'] = ('file', f)
+            premis_response_multipart_encoder = MultipartEncoder(data)
             premis_response = requests.post(
                 BLUEPRINT.config['PREMIS_ENDPOINT'],
-                files={"file": f},
-                data=data
+                data=premis_response_multipart_encoder,
+                headers={"Content-Type": premis_response_multipart_encoder.content_type},
+                stream=True
             )
             premis_response.raise_for_status()
             premis_str = premis_response.content.decode("utf-8")
@@ -113,30 +117,25 @@ class Ingress(Resource):
         ingest_output = None
         with open(in_file_path, 'rb') as content_stream:
             with open(premis_path, 'rb') as premis_stream:
+                materialsuite_multipart_encoder = MultipartEncoder(
+                    {"content": ('content', content_stream),
+                     "premis": ('premis', premis_stream)}
+                )
                 ms_response = requests.post(
                     BLUEPRINT.config['MATERIALSUITE_ENDPOINT'],
-                    files={"content": content_stream,
-                           "premis": premis_stream}
+                    data=materialsuite_multipart_encoder,
+                    headers={'Content-Type': materialsuite_multipart_encoder.content_type},
+                    stream=True
                 )
                 ms_response.raise_for_status()
                 ingest_output = ms_response.json()
 
         # Check to see if the accession identifier exists
-        # If the acc id is specified as "new" mint one
         acc_output = {}
-        if args['accession_id'] != "new":
-            target_acc_url = BLUEPRINT.config['ACCS_ENDPOINT']+args['accession_id'] + "/"
-            acc_exists = requests.head(target_acc_url).status_code == 200
-            if not acc_exists:
-                raise ValueError("Acc doesn't exist!")
-        else:
-            acc_create_response = requests.post(
-                BLUEPRINT.config['ACCS_ENDPOINT']
-            )
-            acc_create_response.raise_for_status()
-            acc_create_json = acc_create_response.json()
-            acc_output['acc_mint'] = acc_create_json
-            args['accession_id'] = acc_create_json['Minted'][0]['identifier']
+        target_acc_url = BLUEPRINT.config['ACCS_ENDPOINT']+args['accession_id'] + "/"
+        acc_exists = requests.head(target_acc_url).status_code == 200
+        if not acc_exists:
+            raise ValueError("Acc doesn't exist!")
 
         # Add the id to the acc record
         acc_response = requests.post(
