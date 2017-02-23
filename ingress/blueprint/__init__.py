@@ -22,7 +22,7 @@ BLUEPRINT.config = {}
 
 API = Api(BLUEPRINT)
 
-log = getLog(__name__)
+log = logging.getLogger(__name__)
 
 class Ingress(Resource):
     def post(self):
