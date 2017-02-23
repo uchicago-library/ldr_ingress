@@ -22,6 +22,7 @@ BLUEPRINT.config = {}
 
 API = Api(BLUEPRINT)
 
+log = getLog(__name__)
 
 class Ingress(Resource):
     def post(self):
@@ -32,8 +33,8 @@ class Ingress(Resource):
             obj_id_value = obj_id.get_objectIdentifierValue()
             return obj_id_value
 
-        logging.info("POST received.")
-        logging.debug("Parsing arguments")
+        log.info("POST received.")
+        log.debug("Parsing arguments")
         parser = reqparse.RequestParser()
         parser.add_argument(
             "md5",
@@ -62,10 +63,10 @@ class Ingress(Resource):
             type=str
         )
         args = parser.parse_args()
-        logging.debug("Arguments parsed")
+        log.debug("Arguments parsed")
 
         # Set up a little working environment, a tmpdir to write files into
-        logging.debug("Creating a temporary directory to work in.")
+        log.debug("Creating a temporary directory to work in.")
         _tmpdir = tempfile.TemporaryDirectory()
         tmpdir = _tmpdir.name
 
@@ -75,11 +76,11 @@ class Ingress(Resource):
         in_file_path = str(Path(tmpdir, uuid4().hex))
 
         # Save the file to a tmp location
-        logging.debug("Saving file into tmpdir")
+        log.debug("Saving file into tmpdir")
         args['file'].save(in_file_path)
 
         # Generate a baseline md5 of what we now have saved...
-        logging.info("Generating md5 of received file")
+        log.info("Generating md5 of received file")
         md5 = None
         with open(in_file_path, 'rb') as f:
             hasher = _md5()
@@ -92,11 +93,11 @@ class Ingress(Resource):
         # Be sure it matches what the client provided off the bat
         # TODO: handle failure differently than raising an exception in the
         # future.
-        logging.info("md5 calculated for file: {}".format(md5))
+        log.info("md5 calculated for file: {}".format(md5))
         if md5 == args['md5']:
-            logging.debug("md5 matches provided md5")
+            log.debug("md5 matches provided md5")
         else:
-            logging.critical(
+            log.critical(
                 "md5 mismatch. " +
                 "Calculated: {} | Provided: {}".format(
                     md5, args['md5']
@@ -106,7 +107,7 @@ class Ingress(Resource):
             abort(500)
 
         # Kick the file off the PREMISer, as defined in the config
-        logging.debug("Transmitting file to PREMISer")
+        log.debug("Transmitting file to PREMISer")
         with open(in_file_path, 'rb') as f:
             data = {"md5": md5}
             if args.get("name"):
@@ -122,29 +123,29 @@ class Ingress(Resource):
             try:
                 premis_response.raise_for_status()
             except:
-                logging.critical("Error in transmission to or response from " +
+                log.critical("Error in transmission to or response from " +
                                  "PREMISer")
             try:
                 premis_str = premis_response.content.decode("utf-8")
             except:
-                logging.critical("Response from PREMISer could not be " +
+                log.critical("Response from PREMISer could not be " +
                                  "decoded as utf-8")
 
         # Instantiate the PREMIS file we got back, again as a random filename in
         # our working dir
-        logging.debug("Instantiating PREMIS file")
+        log.debug("Instantiating PREMIS file")
         premis_path = str(Path(tmpdir, uuid4().hex))
         with open(premis_path, 'w') as f:
             f.write(premis_str)
 
-        logging.debug("Reading PREMIS file...")
+        log.debug("Reading PREMIS file...")
         # Grab the ID the PREMISer minted
         rec = PremisRecord(frompath=premis_path)
         objID = retrieve_obj_id(rec)
-        logging.debug("Retrieved PREMIS ID: {}".format(objID))
+        log.debug("Retrieved PREMIS ID: {}".format(objID))
 
         # POST the file and the PREMIS up into the materialsuite endpoint
-        logging.debug("POSTing file to materialsuite endpoint")
+        log.debug("POSTing file to materialsuite endpoint")
         ingest_output = None
         with open(in_file_path, 'rb') as content_stream:
             with open(premis_path, 'rb') as premis_stream:
@@ -161,34 +162,34 @@ class Ingress(Resource):
                 try:
                     ms_response.raise_for_status()
                 except:
-                    logging.critical("Error in response from materialsuite " +
+                    log.critical("Error in response from materialsuite " +
                                      "endpoint")
                     abort(500)
                 try:
                     ingest_output = ms_response.json()
                 except:
-                    logging.critical("Response from materialsuite endpoint " +
+                    log.critical("Response from materialsuite endpoint " +
                                      "could not be interpreted as JSON")
                     abort(500)
 
         # Check to see if the accession identifier exists
-        logging.debug("Checking the acc exists in the id nest")
+        log.debug("Checking the acc exists in the id nest")
         acc_output = {}
         target_acc_url = BLUEPRINT.config['ACCS_ENDPOINT']+args['accession_id'] + "/"
         acc_exists = requests.head(target_acc_url).status_code == 200
         if not acc_exists:
-            logging.critical("Acc specified ({}) doesn't exist".format(
+            log.critical("Acc specified ({}) doesn't exist".format(
                 args['accession_id'])
             )
             abort(500)
         else:
-            logging.debug("Acc identifier ({}) detected in id nest".format(
+            log.debug("Acc identifier ({}) detected in id nest".format(
                 args['accession_id'])
             )
 
         # Add the id to the acc record
 
-        logging.debug("Adding member to acc")
+        log.debug("Adding member to acc")
         acc_response = requests.post(
             BLUEPRINT.config['ACCS_ENDPOINT']+args['accession_id'] + "/",
             data={"member": objID}
@@ -196,16 +197,16 @@ class Ingress(Resource):
         try:
             acc_response.raise_for_status()
         except:
-            logging.critical("Problem with the response from the idnest")
+            log.critical("Problem with the response from the idnest")
             abort(500)
         try:
             acc_output["member_addition"] = acc_response.json()
         except:
-            logging.critical("response from the idnest could not be " +
+            log.critical("response from the idnest could not be " +
                              "interpreted as JSON")
             abort(500)
 
-        logging.debug("Cleaning up tmpdir")
+        log.debug("Cleaning up tmpdir")
         # Cleanup
         del _tmpdir
 
