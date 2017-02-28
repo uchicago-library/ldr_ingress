@@ -250,15 +250,9 @@ class Ingress(Resource):
         <input type="submit" value="Submit">
         </div>
         </form>
-        <form action={} method="post" style="margin: 0; padding: 0;">
-		<p>
-		Mint an Accession
-		<input style="display: inline;" type="submit" value="Mint" />
-		</p>
-		</form>
     </body>
 </html>
-""".format(BLUEPRINT.config.get("ACCS_ENDPOINT"))
+"""
         return output_html(resp, 200)
 
 
