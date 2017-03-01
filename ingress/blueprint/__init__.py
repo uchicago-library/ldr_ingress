@@ -8,7 +8,7 @@ import logging
 import requests
 from requests_toolbelt.multipart.encoder import MultipartEncoder
 from werkzeug.datastructures import FileStorage
-from flask import Blueprint, abort
+from flask import Blueprint, abort, Response
 from flask_restful import Resource, Api, reqparse
 
 from pypremis.lib import PremisRecord
@@ -23,6 +23,14 @@ BLUEPRINT.config = {}
 API = Api(BLUEPRINT)
 
 log = logging.getLogger(__name__)
+
+
+def output_html(data, code, headers=None):
+	# https://github.com/flask-restful/flask-restful/issues/124
+    resp = Response(data, mimetype='text/html', headers=headers)
+    resp.status_code = code
+    return resp
+
 
 class Ingress(Resource):
     def post(self):
@@ -213,6 +221,39 @@ class Ingress(Resource):
         return {"status": "success",
                 "ingest_output": ingest_output,
                 "acc_output": acc_output}
+
+    def get(self):
+        resp = """<html>
+    <body>
+        <h1>
+        Ingest a file into the LDR
+        </h1>
+        <form action=""
+        enctype="multipart/form-data" method="post">
+        <p>
+        File md5:<br>
+        <input type="text" name="md5" size="30">
+        </p>
+        <p>
+        File Name:<br>
+        <input type="text" name="name" size="30">
+        </p>
+        <p>
+        Accession Id (or "new"):<br>
+        <input type="text" name="accession_id" size="30">
+        </p>
+        <p>
+        Please specify a file:<br>
+        <input type="file" name="file" size="40">
+        </p>
+        <div>
+        <input type="submit" value="Submit">
+        </div>
+        </form>
+    </body>
+</html>
+"""
+        return output_html(resp, 200)
 
 
 @BLUEPRINT.record
