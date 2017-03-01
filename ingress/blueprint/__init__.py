@@ -239,7 +239,7 @@ class Ingress(Resource):
         <input type="text" name="name" size="30">
         </p>
         <p>
-        Accession Id (or "new"):<br>
+        Accession Identifier:<br>
         <input type="text" name="accession_id" size="30">
         </p>
         <p>
